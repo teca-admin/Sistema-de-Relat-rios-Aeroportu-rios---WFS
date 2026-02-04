@@ -1,0 +1,5 @@
+{
+  "name": "Sistema de Relatórios Aeroportuários - WFS",
+  "description": "Uma aplicação completa para geração e envio de relatórios de passagem de serviço baseada no padrão do Aeroporto de Manaus (WFS), incluindo gestão de efetivo, equipamentos e ocorrências.",
+  "requestFramePermissions": []
+}
