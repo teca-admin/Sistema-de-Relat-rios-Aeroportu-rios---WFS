@@ -82,6 +82,8 @@ export interface ChannelData {
 
 export interface ReportData {
   id?: string;
+  shiftStarted: boolean;
+  startTime?: string;
   dataRelatorio: string;
   turno: string;
   liderNome: string;

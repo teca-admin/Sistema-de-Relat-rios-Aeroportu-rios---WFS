@@ -68,22 +68,26 @@ const LeaderDashboard: React.FC<Props> = ({ data }) => {
       <div className="col-span-12 row-span-1 bg-[#1a1c26] border border-slate-700 p-4 flex items-center justify-between shadow-sm">
          <div className="flex gap-12">
             <div className="border-r border-slate-700 pr-12">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Responsável pelo Turno</label>
+              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Líder Responsável</label>
               <div className="text-xs font-bold text-blue-300 uppercase tracking-wider">{data.liderNome}</div>
             </div>
             <div className="border-r border-slate-700 pr-12">
               <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Matrícula</label>
               <div className="text-xs font-mono text-slate-200 font-bold">{data.liderMat}</div>
             </div>
-            <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ref. de Horário</label>
+            <div className="border-r border-slate-700 pr-12">
+              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ref. de Turno</label>
               <div className="text-xs font-bold text-slate-200 uppercase">{data.turno}</div>
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Turno Iniciado às</label>
+              <div className="text-xs font-mono text-emerald-400 font-bold uppercase">{data.startTime || '--:--'}</div>
             </div>
          </div>
          <div className="flex items-center gap-4">
             <div className="text-right">
-              <span className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Sincronização Central</span>
-              <span className="text-[10px] font-mono text-slate-500 font-bold">ATIVO: 99.9%</span>
+              <span className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Status: Operação Ativa</span>
+              <span className="text-[10px] font-mono text-slate-500 font-bold uppercase">Uptime SBEG: 100%</span>
             </div>
             <Activity className="w-5 h-5 text-emerald-400" />
          </div>
@@ -188,14 +192,14 @@ const ChannelCard = ({
   const statusTraduzido = {
     Pendente: 'AGUARDANDO',
     Preenchendo: 'EM EDIÇÃO',
-    Finalizado: 'TURNO EM ANDAMENTO'
+    Finalizado: 'FINALIZADO'
   };
 
   const lastScan = isFox && data.escaneamentos?.length > 0 ? data.escaneamentos[data.escaneamentos.length - 1] : null;
   const lastOcc = data.ocorrenciasList.length > 0 ? data.ocorrenciasList[data.ocorrenciasList.length - 1] : null;
 
   return (
-    <div className={`bg-[#1a1c26] border flex flex-col hover:border-slate-500 transition-all shadow-md ${data.status === 'Finalizado' ? 'border-blue-500/50' : 'border-slate-700'} ${data.ocorrenciasList.length > 0 ? 'border-red-500/30' : ''}`}>
+    <div className={`bg-[#1a1c26] border flex flex-col hover:border-slate-500 transition-all shadow-md ${data.status === 'Finalizado' ? 'border-emerald-500/50' : 'border-slate-700'} ${data.ocorrenciasList.length > 0 ? 'border-red-500/30' : ''}`}>
       <div className="p-3 bg-slate-700/10 border-b border-slate-700 flex items-center justify-between">
         <h4 className="text-[11px] font-bold uppercase tracking-widest text-white">{title}</h4>
         <div className={`text-[9px] font-bold uppercase px-2 py-0.5 border ${statusColors[data.status]}`}>
@@ -225,7 +229,7 @@ const ChannelCard = ({
           </div>
         )}
 
-        {/* Ocorrências Críticas - Agora INTERATIVO */}
+        {/* Ocorrências Críticas */}
         {data.ocorrenciasList.length > 0 && (
           <div 
             onClick={onOpenOccurrences}
@@ -265,8 +269,8 @@ const ChannelCard = ({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-            <div className="bg-black/30 border border-slate-700 p-1.5 text-[9px] font-bold text-slate-400 text-center uppercase rounded-sm">RX-01: <span className="text-emerald-500">OK</span></div>
-            <div className="bg-black/30 border border-slate-700 p-1.5 text-[9px] font-bold text-slate-400 text-center uppercase rounded-sm">PDM: <span className="text-emerald-500">OK</span></div>
+            <div className="bg-black/30 border border-slate-700 p-1.5 text-[9px] font-bold text-slate-400 text-center uppercase rounded-sm">RX-01: <span className="text-emerald-500 font-black">OK</span></div>
+            <div className="bg-black/30 border border-slate-700 p-1.5 text-[9px] font-bold text-slate-400 text-center uppercase rounded-sm">PDM: <span className="text-emerald-500 font-black">OK</span></div>
         </div>
       </div>
     </div>

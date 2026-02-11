@@ -35,10 +35,11 @@ const INITIAL_STAFF_SECTION = (title: string, subtitle: string): StaffSection =>
 });
 
 export const INITIAL_REPORT_DATA: ReportData = {
+  shiftStarted: false,
   dataRelatorio: new Date().toISOString().split('T')[0],
   turno: 'D',
-  liderNome: 'JOÃOZINHO DA SILVA',
-  liderMat: '123456',
+  liderNome: '',
+  liderMat: '',
   canais: {
     bravo: { ...INITIAL_CHANNEL, rfbAtendimento: false, apacAlocado: false },
     alfa: { ...INITIAL_CHANNEL, remoto01Ok: true, pontesGH: true },
