@@ -1,15 +1,20 @@
 
 import React, { useState } from 'react';
 import { ReportData, ChannelData, Occurrence } from '../types';
-import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X, ExternalLink, LayoutGrid } from 'lucide-react';
+import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X, ExternalLink, LayoutGrid, Copy } from 'lucide-react';
 
 interface Props {
   data: ReportData;
-  onOpenHub: () => void;
 }
 
-const LeaderDashboard: React.FC<Props> = ({ data, onOpenHub }) => {
+const LeaderDashboard: React.FC<Props> = ({ data }) => {
   const [selectedChannel, setSelectedChannel] = useState<{ name: string; occurrences: Occurrence[] } | null>(null);
+  const hubUrl = `${window.location.origin}${window.location.pathname}?role=hub`;
+
+  const copyHubLink = () => {
+    navigator.clipboard.writeText(hubUrl);
+    alert('Link do Hub copiado! Use este endereço nos terminais dos canais.');
+  };
 
   return (
     <div className="h-full w-full p-6 grid grid-cols-12 grid-rows-6 gap-6 overflow-hidden bg-[#0f1117] relative">
@@ -80,18 +85,35 @@ const LeaderDashboard: React.FC<Props> = ({ data, onOpenHub }) => {
               <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Turno Iniciado às</label>
               <div className="text-xs font-mono text-emerald-400 font-bold uppercase">{data.startTime || '--:--'}</div>
             </div>
+            
+            {/* PORTAL DE ACESSO EXTERNO (Solicitado) */}
             <div className="flex items-center gap-2">
                <div className="h-full w-px bg-slate-700 mx-4"></div>
-               <button 
-                onClick={onOpenHub}
-                className="bg-blue-600 hover:bg-blue-500 border border-blue-500/30 px-4 py-1.5 rounded-sm flex items-center gap-3 transition-colors active:scale-95"
-               >
-                 <LayoutGrid className="w-4 h-4 text-white" />
-                 <div>
-                   <span className="block text-[8px] font-black text-white/50 uppercase tracking-widest">Acesso Setores</span>
-                   <span className="text-[10px] font-black text-white uppercase">Abrir Hub de Terminais</span>
-                 </div>
-               </button>
+               <div className="flex items-center gap-2 bg-black/30 border border-slate-700 p-1 rounded-sm">
+                  <a 
+                    href={hubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-sm flex items-center gap-3 transition-colors active:scale-95 group"
+                  >
+                    <ExternalLink className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                    <div>
+                      <span className="block text-[8px] font-black text-white/50 uppercase tracking-widest">Acesso Terminais</span>
+                      <span className="text-[10px] font-black text-white uppercase">Link Externo do Hub</span>
+                    </div>
+                  </a>
+                  <button 
+                    onClick={copyHubLink}
+                    className="p-2.5 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border-l border-slate-700"
+                    title="Copiar link para outras máquinas"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+               </div>
+               <div className="hidden xl:block ml-2">
+                  <p className="text-[8px] font-mono text-slate-600 uppercase tracking-tighter">URL de Distribuição:</p>
+                  <p className="text-[9px] font-mono text-blue-500/60 font-bold truncate max-w-[120px]">?role=hub</p>
+               </div>
             </div>
          </div>
          <div className="flex items-center gap-4">

@@ -203,7 +203,7 @@ const App: React.FC = () => {
 
       <main className="flex-grow overflow-hidden relative">
         {currentRole === 'leader' ? (
-          <LeaderDashboard data={data} onOpenHub={() => setCurrentRole('hub')} />
+          <LeaderDashboard data={data} />
         ) : (
           <TerminalHub data={data} onSelectChannel={(id) => setActiveChannel(id)} />
         )}
