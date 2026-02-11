@@ -18,7 +18,15 @@ export interface ChannelInspection {
   quantidade?: string;
 }
 
-// Added data, ordemServico, and prazo to Equipment to support all components
+export interface ScanningRecord {
+  id: string;
+  tipo: 'Exportação' | 'Internação';
+  apac: string;
+  inicio: string;
+  fim: string;
+  quantidade: string;
+}
+
 export interface Equipment {
   id: string;
   tipo: string;
@@ -31,7 +39,6 @@ export interface Equipment {
   prazo?: string;
 }
 
-// Added FlightAttendance interface used in ReportForm and ReportPreview
 export interface FlightAttendance {
   id: string;
   numeroVoo: string;
@@ -41,16 +48,15 @@ export interface FlightAttendance {
   quantPax: string;
 }
 
-// Added Occurrence interface used in ReportForm, ReportPreview and Dashboard
 export interface Occurrence {
   id: string;
   numero: string;
   descricao: string;
   detalhes: string;
   images: string[];
+  horario?: string;
 }
 
-// Added StaffSection interface used in Dashboard and ReportForm
 export interface StaffSection {
   title: string;
   subtitle: string;
@@ -65,22 +71,15 @@ export interface ChannelData {
   agentes: Agent[];
   equipamentos: Equipment[];
   inspecoes: ChannelInspection[];
+  escaneamentos: ScanningRecord[];
   ocorrencias: string;
-  // Campos específicos
+  ocorrenciasList: Occurrence[];
   rfbAtendimento?: boolean;
   apacAlocado?: boolean;
   remoto01Ok?: boolean;
   pontesGH?: boolean;
-  escaneamentoInfo?: {
-    tipo: 'Exportação' | 'Internação';
-    inicio: string;
-    fim: string;
-    quantidade: string;
-    solicitante: string;
-  };
 }
 
-// Reconciled ReportData to include fields required by ReportForm, ReportPreview and Dashboard
 export interface ReportData {
   id?: string;
   dataRelatorio: string;

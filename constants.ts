@@ -8,7 +8,6 @@ export const SHIFTS = [
   { label: 'D: 18:00 - 00:00', value: '18:00 - 00:00' },
 ];
 
-// Added AVAILABLE_AGENTS export to resolve import errors in form components
 export const AVAILABLE_AGENTS = [
   { mat: '123456', nome: 'JOÃOZINHO DA SILVA' },
   { mat: '654321', nome: 'MARIA OLIVEIRA' },
@@ -23,7 +22,9 @@ const INITIAL_CHANNEL: ChannelData = {
   agentes: [],
   equipamentos: [],
   inspecoes: [],
-  ocorrencias: ''
+  escaneamentos: [],
+  ocorrencias: '',
+  ocorrenciasList: []
 };
 
 const INITIAL_STAFF_SECTION = (title: string, subtitle: string): StaffSection => ({
@@ -33,7 +34,6 @@ const INITIAL_STAFF_SECTION = (title: string, subtitle: string): StaffSection =>
   inspecoes: []
 });
 
-// Updated INITIAL_REPORT_DATA to include all required fields for cross-component compatibility
 export const INITIAL_REPORT_DATA: ReportData = {
   dataRelatorio: new Date().toISOString().split('T')[0],
   turno: 'D',
@@ -43,10 +43,7 @@ export const INITIAL_REPORT_DATA: ReportData = {
     bravo: { ...INITIAL_CHANNEL, rfbAtendimento: false, apacAlocado: false },
     alfa: { ...INITIAL_CHANNEL, remoto01Ok: true, pontesGH: true },
     charlie: { ...INITIAL_CHANNEL },
-    fox: { 
-      ...INITIAL_CHANNEL, 
-      escaneamentoInfo: { tipo: 'Exportação', inicio: '', fim: '', quantidade: '', solicitante: '' } 
-    }
+    fox: { ...INITIAL_CHANNEL }
   },
   voos: [],
   supervisor: '',
