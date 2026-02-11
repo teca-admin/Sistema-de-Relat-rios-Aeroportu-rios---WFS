@@ -1,16 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReportData, ChannelData } from './types';
 import { INITIAL_REPORT_DATA, AVAILABLE_AGENTS } from './constants';
 import LeaderDashboard from './components/LeaderDashboard';
 import ChannelEntry from './components/ChannelEntry';
-import { Shield, User, Monitor, LogOut, Terminal, Lock, ChevronRight, Play } from 'lucide-react';
+import TerminalHub from './components/TerminalHub';
+import { Shield, Monitor, LogOut, Lock, ChevronRight, Play, LayoutGrid } from 'lucide-react';
 
-type UserRole = 'leader' | 'bravo' | 'alfa' | 'charlie' | 'fox';
+type UserRole = 'leader' | 'hub' | 'bravo' | 'alfa' | 'charlie' | 'fox';
 
 const App: React.FC = () => {
   const [data, setData] = useState<ReportData>(INITIAL_REPORT_DATA);
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const [activeChannel, setActiveChannel] = useState<string | null>(null);
+
+  // Detectar acesso via link externo (URL Parameter)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'hub') {
+      setCurrentRole('hub');
+    }
+  }, []);
 
   const handleStartShift = (lider: typeof AVAILABLE_AGENTS[0], turno: string) => {
     setData(prev => ({
@@ -23,7 +34,7 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleChannelUpdate = (view: UserRole, newData: ChannelData) => {
+  const handleChannelUpdate = (view: string, newData: ChannelData) => {
     setData(prev => {
       const updatedCanais = { ...prev.canais, [view]: newData };
       
@@ -53,7 +64,7 @@ const App: React.FC = () => {
     });
   };
 
-  // 1. TELA DE SELEÇÃO DE ESTAÇÃO
+  // 1. TELA DE SELEÇÃO DE ESTAÇÃO (HOME - APENAS LÍDER)
   if (!currentRole) {
     return (
       <div className="h-screen bg-[#05060a] flex flex-col items-center justify-center p-6 text-slate-300 font-sans">
@@ -68,28 +79,22 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="flex justify-center max-w-xl mx-auto">
             <RoleCard 
-              icon={<Monitor className="w-6 h-6" />}
-              title="Liderança"
-              subtitle="Dashboard HQ"
+              icon={<Monitor className="w-12 h-12" />}
+              title="Comando Líder"
+              subtitle="HQ Analítico, Gestão e Abertura de Turno"
               color="blue"
               onClick={() => setCurrentRole('leader')}
             />
-            {['Bravo', 'Alfa', 'Charlie', 'Fox'].map((cnl) => (
-              <RoleCard 
-                key={cnl}
-                icon={<Terminal className="w-6 h-6" />}
-                title={`Canal ${cnl}`}
-                subtitle="Terminal Op."
-                color="slate"
-                onClick={() => setCurrentRole(cnl.toLowerCase() as UserRole)}
-              />
-            ))}
           </div>
           
-          <div className="mt-12 text-center text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">
-            © 2024 WFS Group - Airport Safety and Security
+          <div className="mt-16 text-center">
+            <p className="text-[9px] text-slate-700 font-bold uppercase tracking-[0.4em] mb-4">Acesso Restrito ao Pessoal Autorizado</p>
+            <div className="h-px w-24 bg-slate-800 mx-auto mb-4"></div>
+            <div className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">
+              © 2024 WFS Group - Airport Safety and Security
+            </div>
           </div>
         </div>
       </div>
@@ -101,8 +106,8 @@ const App: React.FC = () => {
     return <StartShiftScreen onStart={handleStartShift} onBack={() => setCurrentRole(null)} />;
   }
 
-  // 3. TELA DE BLOQUEIO (CANAIS SEM TURNO INICIADO)
-  if (currentRole !== 'leader' && !data.shiftStarted) {
+  // 3. TELA DE BLOQUEIO (HUB SEM TURNO INICIADO)
+  if (currentRole === 'hub' && !data.shiftStarted) {
     return (
       <div className="h-screen bg-[#0f1117] flex items-center justify-center p-8 text-center">
         <div className="max-w-md space-y-6">
@@ -111,22 +116,58 @@ const App: React.FC = () => {
                <Lock className="w-8 h-8 text-amber-500" />
              </div>
            </div>
-           <h2 className="text-xl font-black text-white uppercase tracking-widest">Estação Bloqueada</h2>
+           <h2 className="text-xl font-black text-white uppercase tracking-widest">Acesso Negado</h2>
            <p className="text-slate-400 text-sm font-medium leading-relaxed">
-             O turno ainda não foi iniciado pela supervisão. Por favor, aguarde a liberação do Líder no Comando Operacional (HQ).
+             O turno ainda não foi liberado pela supervisão no Comando Líder. 
+             Por favor, aguarde a ativação operacional no QG.
            </p>
            <button 
-             onClick={() => setCurrentRole(null)}
+             onClick={() => {
+               window.location.search = ''; // Limpa o parâmetro da URL ao voltar
+               setCurrentRole(null);
+             }}
              className="text-[10px] font-bold uppercase text-slate-500 hover:text-white transition-colors"
            >
-             Voltar para Seleção de Estação
+             Voltar para Início
            </button>
         </div>
       </div>
     );
   }
 
-  // 4. APLICAÇÃO ATIVA (LEADER OU CHANNEL)
+  // 4. VISUALIZAÇÃO DE FORMULÁRIO (DENTRO DO HUB)
+  if (activeChannel) {
+    return (
+      <div className="h-screen flex flex-col bg-[#0f1117]">
+        <header className="h-14 bg-[#1a1c26] border-b border-slate-700 flex items-center justify-between px-6 shrink-0 z-50">
+          <div className="flex items-center gap-4">
+             <button onClick={() => setActiveChannel(null)} className="p-2 hover:bg-white/5 rounded-full text-slate-400 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors">
+               <LayoutGrid className="w-4 h-4" /> Voltar Hub
+             </button>
+             <div className="h-6 w-px bg-slate-700 mx-2"></div>
+             <h1 className="text-[11px] font-black uppercase tracking-widest text-white">
+               Terminal Operacional: Canal {activeChannel.toUpperCase()}
+             </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-[9px] font-black text-blue-500 uppercase tracking-widest">SBEG Airport - Manaus</div>
+              <div className="text-[10px] font-mono text-slate-300 font-bold">Líder: {data.liderNome.split(' ')[0]} | Turno {data.turno}</div>
+            </div>
+          </div>
+        </header>
+        <main className="flex-grow overflow-hidden">
+           <ChannelEntry 
+              canal={activeChannel} 
+              data={data.canais[activeChannel as keyof ReportData['canais']]} 
+              onUpdate={(newData) => handleChannelUpdate(activeChannel, newData)}
+            />
+        </main>
+      </div>
+    );
+  }
+
+  // 5. APLICAÇÕES ATIVAS (LEADER DASH OU HUB SELETOR)
   return (
     <div className="h-screen flex flex-col bg-[#0f1117] text-slate-200 overflow-hidden font-sans">
       <header className="h-14 bg-[#1a1c26] border-b border-slate-700 flex items-center justify-between px-6 shrink-0 z-50 shadow-lg">
@@ -136,59 +177,56 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="text-[11px] font-black uppercase tracking-[0.15em] text-white leading-none">
-              {currentRole === 'leader' ? 'Centro de Comando Operacional (HQ)' : `Estação de Trabalho: Canal ${currentRole.toUpperCase()}`}
+              {currentRole === 'leader' ? 'Centro de Comando Operacional (HQ)' : 'Hub de Terminais Segregados'}
             </h1>
-            <p className="text-[9px] text-blue-500 uppercase font-black tracking-widest mt-1.5">SBEG Airport - Segurança da Aviação Civil</p>
+            <p className="text-[9px] text-blue-500 uppercase font-black tracking-widest mt-1.5">SBEG Airport Services - Operação Integrada</p>
           </div>
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="text-right border-r border-slate-700 pr-6">
+          <div className="text-right border-l border-slate-700 pl-6">
             <p className="text-[10px] font-black text-slate-100 uppercase leading-none">{data.liderNome || 'Aguardando Líder'}</p>
-            <p className="text-[9px] text-blue-400 font-mono mt-1.5 font-bold uppercase">Mat: {data.liderMat || '---'} | Turno {data.turno}</p>
+            <p className="text-[9px] text-blue-400 font-mono mt-1.5 font-bold uppercase">Mat: {data.liderMat} | Turno {data.turno}</p>
           </div>
           <button 
-            onClick={() => setCurrentRole(null)}
+            onClick={() => {
+              if (currentRole === 'hub') window.location.search = '';
+              setCurrentRole(null);
+            }}
             className="group flex items-center gap-3 bg-red-900/10 hover:bg-red-600 border border-red-500/30 hover:border-red-400 text-red-500 hover:text-white px-4 py-1.5 transition-all active:scale-95"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Logoff Estação</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Logout</span>
           </button>
         </div>
       </header>
 
       <main className="flex-grow overflow-hidden relative">
         {currentRole === 'leader' ? (
-          <LeaderDashboard data={data} />
+          <LeaderDashboard data={data} onOpenHub={() => setCurrentRole('hub')} />
         ) : (
-          <ChannelEntry 
-            canal={currentRole} 
-            data={data.canais[currentRole as keyof ReportData['canais']]} 
-            onUpdate={(newData) => handleChannelUpdate(currentRole, newData)}
-          />
+          <TerminalHub data={data} onSelectChannel={(id) => setActiveChannel(id)} />
         )}
       </main>
     </div>
   );
 };
 
-// SUBCOMPONENTES AUXILIARES
-
 const RoleCard = ({ icon, title, subtitle, color, onClick }: any) => {
   const themes: any = {
-    blue: 'border-blue-500/30 hover:bg-blue-600/10 text-blue-500',
+    blue: 'border-blue-500/30 hover:bg-blue-600/10 text-blue-500 shadow-[0_0_40px_rgba(37,99,235,0.05)]',
     slate: 'border-slate-700 hover:bg-slate-700/30 text-slate-400'
   };
 
   return (
     <button 
       onClick={onClick}
-      className={`bg-[#11131a] border ${themes[color]} p-8 flex flex-col items-center gap-4 transition-all hover:translate-y-[-4px] active:scale-95 group rounded-sm`}
+      className={`bg-[#11131a] border ${themes[color]} p-16 flex flex-col items-center gap-6 transition-all hover:translate-y-[-6px] active:scale-95 group rounded-sm w-full`}
     >
-      <div className="p-4 bg-black/20 rounded-full group-hover:scale-110 transition-transform">{icon}</div>
+      <div className="p-8 bg-black/20 rounded-full group-hover:scale-110 group-hover:bg-black/40 transition-all border border-transparent group-hover:border-current/10">{icon}</div>
       <div className="text-center">
-        <h3 className="text-sm font-black uppercase tracking-widest text-slate-200">{title}</h3>
-        <p className="text-[9px] font-bold text-slate-600 uppercase mt-1 tracking-widest">{subtitle}</p>
+        <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-slate-200 group-hover:text-white transition-colors">{title}</h3>
+        <p className="text-xs font-bold text-slate-600 uppercase mt-4 tracking-widest max-w-[250px] leading-relaxed group-hover:text-slate-400 transition-colors">{subtitle}</p>
       </div>
     </button>
   );

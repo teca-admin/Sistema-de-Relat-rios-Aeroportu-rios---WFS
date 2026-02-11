@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
 import { ReportData, ChannelData, Occurrence } from '../types';
-import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X } from 'lucide-react';
+import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X, ExternalLink, LayoutGrid } from 'lucide-react';
 
 interface Props {
   data: ReportData;
+  onOpenHub: () => void;
 }
 
-const LeaderDashboard: React.FC<Props> = ({ data }) => {
+const LeaderDashboard: React.FC<Props> = ({ data, onOpenHub }) => {
   const [selectedChannel, setSelectedChannel] = useState<{ name: string; occurrences: Occurrence[] } | null>(null);
 
   return (
@@ -76,12 +77,21 @@ const LeaderDashboard: React.FC<Props> = ({ data }) => {
               <div className="text-xs font-mono text-slate-200 font-bold">{data.liderMat}</div>
             </div>
             <div className="border-r border-slate-700 pr-12">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Ref. de Turno</label>
-              <div className="text-xs font-bold text-slate-200 uppercase">{data.turno}</div>
-            </div>
-            <div>
               <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Turno Iniciado às</label>
               <div className="text-xs font-mono text-emerald-400 font-bold uppercase">{data.startTime || '--:--'}</div>
+            </div>
+            <div className="flex items-center gap-2">
+               <div className="h-full w-px bg-slate-700 mx-4"></div>
+               <button 
+                onClick={onOpenHub}
+                className="bg-blue-600 hover:bg-blue-500 border border-blue-500/30 px-4 py-1.5 rounded-sm flex items-center gap-3 transition-colors active:scale-95"
+               >
+                 <LayoutGrid className="w-4 h-4 text-white" />
+                 <div>
+                   <span className="block text-[8px] font-black text-white/50 uppercase tracking-widest">Acesso Setores</span>
+                   <span className="text-[10px] font-black text-white uppercase">Abrir Hub de Terminais</span>
+                 </div>
+               </button>
             </div>
          </div>
          <div className="flex items-center gap-4">
@@ -186,13 +196,13 @@ const ChannelCard = ({
   const statusColors = {
     Pendente: 'border-slate-600 text-slate-400',
     Preenchendo: 'border-blue-700 text-blue-300 bg-blue-500/10',
-    Finalizado: 'border-blue-400 text-blue-200 bg-blue-600/20 shadow-[0_0_10px_rgba(59,130,246,0.3)]'
+    Finalizado: 'border-emerald-500/50 text-emerald-400 bg-emerald-600/20'
   };
 
   const statusTraduzido = {
     Pendente: 'AGUARDANDO',
     Preenchendo: 'EM EDIÇÃO',
-    Finalizado: 'FINALIZADO'
+    Finalizado: 'CONCLUÍDO'
   };
 
   const lastScan = isFox && data.escaneamentos?.length > 0 ? data.escaneamentos[data.escaneamentos.length - 1] : null;
