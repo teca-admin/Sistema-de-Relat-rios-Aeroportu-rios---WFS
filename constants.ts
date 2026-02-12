@@ -16,7 +16,8 @@ export const AVAILABLE_AGENTS = [
   { mat: '445566', nome: 'PEDRO ALVES' }
 ];
 
-const INITIAL_CHANNEL: ChannelData = {
+// Função para gerar um canal limpo (evita bugs de memória)
+const createEmptyChannel = (): ChannelData => ({
   status: 'Pendente',
   condicaoPosto: 'Operacional',
   agentes: [],
@@ -25,26 +26,27 @@ const INITIAL_CHANNEL: ChannelData = {
   escaneamentos: [],
   ocorrencias: '',
   ocorrenciasList: []
-};
+});
 
-const INITIAL_STAFF_SECTION = (title: string, subtitle: string): StaffSection => ({
+const createEmptyStaffSection = (title: string, subtitle: string): StaffSection => ({
   title,
   subtitle,
   agents: [],
   inspecoes: []
 });
 
-export const INITIAL_REPORT_DATA: ReportData = {
+// Exportamos uma função em vez de um objeto estático
+export const getInitialReportData = (): ReportData => ({
   shiftStarted: false,
   dataRelatorio: new Date().toISOString().split('T')[0],
   turno: 'D',
   liderNome: '',
   liderMat: '',
   canais: {
-    bravo: { ...INITIAL_CHANNEL, rfbAtendimento: false, apacAlocado: false },
-    alfa: { ...INITIAL_CHANNEL, remoto01Ok: true, pontesGH: true },
-    charlie: { ...INITIAL_CHANNEL },
-    fox: { ...INITIAL_CHANNEL }
+    bravo: { ...createEmptyChannel(), rfbAtendimento: false, apacAlocado: false },
+    alfa: { ...createEmptyChannel(), remoto01Ok: true, pontesGH: true },
+    charlie: { ...createEmptyChannel() },
+    fox: { ...createEmptyChannel() }
   },
   voos: [],
   supervisor: '',
@@ -52,12 +54,15 @@ export const INITIAL_REPORT_DATA: ReportData = {
   entreguePor: '',
   horarioRecebimento: '',
   efetivo: {
-    domesticoBravo: INITIAL_STAFF_SECTION('Canal Bravo', 'Doméstico'),
-    funcionariosCharlie: INITIAL_STAFF_SECTION('Canal Charlie', 'Funcionários'),
-    internacionalAlfa: INITIAL_STAFF_SECTION('Canal Alfa', 'Internacional'),
-    tecaFox: INITIAL_STAFF_SECTION('Canal Fox', 'TECA')
+    domesticoBravo: createEmptyStaffSection('Canal Bravo', 'Doméstico'),
+    funcionariosCharlie: createEmptyStaffSection('Canal Charlie', 'Funcionários'),
+    internacionalAlfa: createEmptyStaffSection('Canal Alfa', 'Internacional'),
+    tecaFox: createEmptyStaffSection('Canal Fox', 'TECA')
   },
   equipamentos: [],
   ocorrencias: [],
   voosInternacionais: []
-};
+});
+
+// Mantemos o objeto para compatibilidade, mas o App usará a função
+export const INITIAL_REPORT_DATA = getInitialReportData();

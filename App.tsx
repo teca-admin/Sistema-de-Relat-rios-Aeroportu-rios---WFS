@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ReportData, ChannelData } from './types';
-import { INITIAL_REPORT_DATA, AVAILABLE_AGENTS } from './constants';
+import { getInitialReportData, AVAILABLE_AGENTS } from './constants';
 import { supabase } from './supabase';
 import LeaderDashboard from './components/LeaderDashboard';
 import ChannelEntry from './components/ChannelEntry';
@@ -11,7 +11,7 @@ import { Shield, Monitor, LogOut, Lock, ChevronRight, Play, LayoutGrid, Radio, L
 type UserRole = 'leader' | 'hub' | 'bravo' | 'alfa' | 'charlie' | 'fox';
 
 const App: React.FC = () => {
-  const [data, setData] = useState<ReportData>(INITIAL_REPORT_DATA);
+  const [data, setData] = useState<ReportData>(getInitialReportData());
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [isLeaderAuthenticated, setIsLeaderAuthenticated] = useState(false);
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
-  // 1. VERIFICADOR DE INTEGRIDADE DO BANCO DE DADOS
   useEffect(() => {
     const checkDb = async () => {
       if (!supabase) {
@@ -31,36 +30,33 @@ const App: React.FC = () => {
         if (error) throw error;
         setDbStatus('online');
       } catch (e) {
-        console.warn("Banco de dados não configurado ou tabelas ausentes. Usando LocalStorage.");
         setDbStatus('offline');
       }
     };
     checkDb();
   }, []);
 
-  // 2. SINCRONISMO LOCALSTORAGE (INSTANTÂNEO ENTRE ABAS)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'avsec_global_data') {
         const remoteData = JSON.parse(e.newValue || '{}');
         if (remoteData.shiftStarted) {
-          setData(prev => ({
-            ...prev,
-            ...remoteData,
-            canais: activeChannel ? { ...remoteData.canais, [activeChannel]: prev.canais[activeChannel as keyof ReportData['canais']] } : remoteData.canais
-          }));
+          setData(prev => {
+            const updatedCanais = { ...remoteData.canais };
+            if (activeChannel) {
+              updatedCanais[activeChannel] = prev.canais[activeChannel as keyof ReportData['canais']];
+            }
+            return { ...prev, ...remoteData, canais: updatedCanais };
+          });
         }
       }
     };
     window.addEventListener('storage', handleStorageChange);
-    
     const cached = localStorage.getItem('avsec_global_data');
     if (cached) setData(JSON.parse(cached));
-
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [activeChannel]);
 
-  // 3. SINCRONISMO NUVEM (BUSCA DADOS DO SUPABASE)
   useEffect(() => {
     const fetchCloud = async () => {
       if (dbStatus !== 'online') return;
@@ -83,41 +79,62 @@ const App: React.FC = () => {
           supabase.from('relatorio_inspecoes').select('*').eq('relatorio_id', shiftId)
         ]);
 
-        const dbSyncData = { ...INITIAL_REPORT_DATA };
+        // CRITICAL FIX: Criar um estado NOVO e LIMPO para cada sincronização
+        const dbSyncData = getInitialReportData();
         dbSyncData.shiftStarted = true;
         dbSyncData.liderNome = shift.supervisor;
         dbSyncData.turno = shift.turno;
         dbSyncData.startTime = new Date(shift.created_at).toLocaleTimeString('pt-BR');
 
+        // Mapeamento seguro: Limpa e Preenche
         if (agentsRes.data) {
           agentsRes.data.forEach((dbAgent: any) => {
-            const canal = dbAgent.canal as keyof ReportData['canais'];
-            if (dbSyncData.canais[canal]) {
-              dbSyncData.canais[canal].agentes.push({ id: dbAgent.id, mat: dbAgent.mat, nome: dbAgent.nome, horario: dbAgent.horario });
-              dbSyncData.canais[canal].status = 'Preenchendo';
+            const canalKey = dbAgent.canal as keyof ReportData['canais'];
+            if (dbSyncData.canais[canalKey]) {
+              // Verifica se já existe para evitar duplicação caso o polling falhe
+              const exists = dbSyncData.canais[canalKey].agentes.some(a => a.id === dbAgent.id);
+              if (!exists) {
+                dbSyncData.canais[canalKey].agentes.push({
+                  id: dbAgent.id || crypto.randomUUID(),
+                  mat: dbAgent.mat,
+                  nome: dbAgent.nome,
+                  horario: dbAgent.horario
+                });
+                dbSyncData.canais[canalKey].status = 'Finalizado';
+              }
             }
           });
         }
 
         if (inspectionsRes.data) {
           inspectionsRes.data.forEach((dbInsp: any) => {
-            const canal = dbInsp.canal as keyof ReportData['canais'];
-            if (dbSyncData.canais[canal]) {
-              dbSyncData.canais[canal].inspecoes.push({ id: dbInsp.id, descricao: dbInsp.descricao, horario: dbInsp.horario, status: dbInsp.status });
+            const canalKey = dbInsp.canal as keyof ReportData['canais'];
+            if (dbSyncData.canais[canalKey]) {
+              dbSyncData.canais[canalKey].inspecoes.push({
+                id: dbInsp.id || crypto.randomUUID(),
+                descricao: dbInsp.descricao,
+                horario: dbInsp.horario,
+                status: dbInsp.status
+              });
             }
           });
         }
 
         setData(prev => {
-          const finalData = { ...dbSyncData };
-          if (activeChannel) finalData.canais[activeChannel as keyof ReportData['canais']] = prev.canais[activeChannel as keyof ReportData['canais']];
-          localStorage.setItem('avsec_global_data', JSON.stringify(finalData));
-          return finalData;
+          const mergedData = { ...dbSyncData };
+          // Se o usuário estiver editando um canal agora, não sobrescrevemos o local dele
+          if (activeChannel) {
+            mergedData.canais[activeChannel as keyof ReportData['canais']] = prev.canais[activeChannel as keyof ReportData['canais']];
+          }
+          localStorage.setItem('avsec_global_data', JSON.stringify(mergedData));
+          return mergedData;
         });
-      } catch (err) { console.error("Erro no sync nuvem"); }
+      } catch (err) {
+        console.error("Erro no motor de sincronização nuvem");
+      }
     };
 
-    const interval = setInterval(fetchCloud, 5000); 
+    const interval = setInterval(fetchCloud, 4000); 
     return () => clearInterval(interval);
   }, [dbStatus, activeChannel]);
 
@@ -133,7 +150,7 @@ const App: React.FC = () => {
           turno, supervisor: lider.nome, data_relatorio: new Date().toISOString().split('T')[0], recebimento_de: 'NOVO TURNO'
         }]).select();
         if (newShiftArray && newShiftArray.length > 0) setActiveShiftId(newShiftArray[0].id);
-      } catch (e) { console.error("Erro ao salvar turno"); }
+      } catch (e) { console.error("Erro ao iniciar turno"); }
     }
     setTimeout(() => setIsSyncing(false), 800);
   };
