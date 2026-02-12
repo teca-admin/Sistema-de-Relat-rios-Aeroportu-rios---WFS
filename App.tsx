@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 import LeaderDashboard from './components/LeaderDashboard';
 import ChannelEntry from './components/ChannelEntry';
 import TerminalHub from './components/TerminalHub';
-import { Shield, Monitor, LogOut, Lock, ChevronRight, Play, LayoutGrid, Radio, Loader2 } from 'lucide-react';
+import { Shield, Monitor, LogOut, Lock, ChevronRight, Play, LayoutGrid, Radio, Loader2, Signal } from 'lucide-react';
 
 type UserRole = 'leader' | 'hub' | 'bravo' | 'alfa' | 'charlie' | 'fox';
 
@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [data, setData] = useState<ReportData>(INITIAL_REPORT_DATA);
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
-  const [isCheckingShift, setIsCheckingShift] = useState(true);
+  const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
 
   // Monitoramento Global de Turno (Polling para detecção automática entre máquinas)
   useEffect(() => {
@@ -22,8 +22,7 @@ const App: React.FC = () => {
       if (!supabase) return;
       
       try {
-        // Buscamos o registro de turno mais recente que ainda não foi finalizado
-        const { data: activeShifts, error } = await supabase
+        const { data: activeShifts } = await supabase
           .from('relatorios')
           .select('*')
           .order('created_at', { ascending: false })
@@ -31,48 +30,47 @@ const App: React.FC = () => {
 
         if (activeShifts && activeShifts.length > 0) {
           const shift = activeShifts[0];
-          // Se o relatório foi criado hoje e não tem horário de recebimento preenchido (simulando "em andamento")
           const isToday = new Date(shift.created_at).toDateString() === new Date().toDateString();
           
+          // Se o turno está ativo e não foi finalizado (entregue_por nulo)
           if (isToday && !shift.entregue_por) {
+            setActiveShiftId(shift.id);
             setData(prev => ({
               ...prev,
               shiftStarted: true,
-              liderNome: shift.supervisor || 'Líder Ativo',
-              liderMat: 'Sincronizado',
+              liderNome: shift.supervisor || 'Líder Conectado',
+              liderMat: 'Sessão Ativa',
               turno: shift.turno,
               startTime: new Date(shift.created_at).toLocaleTimeString('pt-BR')
             }));
           } else {
-            // Se o último foi finalizado, resetamos o estado local
             setData(prev => ({ ...prev, shiftStarted: false }));
+            setActiveShiftId(null);
           }
         }
       } catch (err) {
         console.error("Erro na detecção de turno:", err);
-      } finally {
-        setIsCheckingShift(false);
       }
     };
 
-    // Detectar papel pela URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('role') === 'hub') setCurrentRole('hub');
 
     checkActiveShift();
-    const interval = setInterval(checkActiveShift, 5000); // Polling a cada 5s para sincronizar máquinas
+    const interval = setInterval(checkActiveShift, 3000); // Polling a cada 3s para resposta instantânea
     return () => clearInterval(interval);
   }, []);
 
   const handleStartShift = async (lider: typeof AVAILABLE_AGENTS[0], turno: string) => {
-    // Ao iniciar o turno, criamos um registro "âncora" no banco para os terminais detectarem
     if (supabase) {
-      await supabase.from('relatorios').insert([{
+      const { data: newShift } = await supabase.from('relatorios').insert([{
         turno,
         supervisor: lider.nome,
         data_relatorio: new Date().toISOString().split('T')[0],
-        recebimento_de: 'Início de Turno'
-      }]);
+        recebimento_de: 'Início de Turno via QG'
+      }]).select().single();
+
+      if (newShift) setActiveShiftId(newShift.id);
     }
 
     setData(prev => ({
@@ -107,7 +105,6 @@ const App: React.FC = () => {
     });
   };
 
-  // 1. TELA DE SELEÇÃO (HOME - APENAS LÍDER)
   if (!currentRole) {
     return (
       <div className="h-screen bg-[#05060a] flex flex-col items-center justify-center p-6 text-slate-300 font-sans">
@@ -135,12 +132,10 @@ const App: React.FC = () => {
     );
   }
 
-  // 2. TELA DE ABERTURA DE TURNO (LÍDER LOCAL)
   if (currentRole === 'leader' && !data.shiftStarted) {
     return <StartShiftScreen onStart={handleStartShift} onBack={() => setCurrentRole(null)} />;
   }
 
-  // 3. TELA DE ESPERA INTELIGENTE (HUB EXTERNO DETECTANDO LÍDER)
   if (currentRole === 'hub' && !data.shiftStarted) {
     return (
       <div className="h-screen bg-[#0a0b10] flex items-center justify-center p-8 text-center">
@@ -152,20 +147,22 @@ const App: React.FC = () => {
              </div>
            </div>
            <div className="space-y-4">
-             <h2 className="text-xl font-black text-white uppercase tracking-[0.2em]">Sincronizando Terminal</h2>
+             <h2 className="text-xl font-black text-white uppercase tracking-[0.2em]">Sincronizando Estação</h2>
              <p className="text-slate-500 text-xs font-bold uppercase leading-relaxed tracking-widest">
-               Aguardando liberação operacional do Comando Líder no QG...
+               Aguardando abertura de turno no Comando Líder...
              </p>
            </div>
-           <div className="flex items-center justify-center gap-3 text-[9px] font-black text-blue-400 uppercase tracking-tighter bg-blue-500/5 py-2 rounded border border-blue-500/10">
-              <Loader2 className="w-3 h-3 animate-spin" /> Link Ativo: MAO-SBEG-HUB-01
+           <div className="flex flex-col gap-2 p-4 bg-blue-500/5 rounded border border-blue-500/10">
+              <div className="flex items-center justify-center gap-3 text-[9px] font-black text-blue-400 uppercase tracking-widest">
+                 <Loader2 className="w-3 h-3 animate-spin" /> Buscando Sinal Operacional
+              </div>
+              <p className="text-[8px] font-mono text-slate-600">ID TERMINAL: SBEG-HUB-01</p>
            </div>
         </div>
       </div>
     );
   }
 
-  // 4. VISUALIZAÇÃO DE FORMULÁRIO (DENTRO DO HUB)
   if (activeChannel) {
     return (
       <div className="h-screen flex flex-col bg-[#0f1117]">
@@ -180,8 +177,11 @@ const App: React.FC = () => {
              </h1>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+               <span className="text-[9px] font-black text-emerald-500 uppercase">Sincronizado</span>
+            </div>
             <div className="text-right">
-              <div className="text-[9px] font-black text-blue-500 uppercase tracking-widest">SBEG Airport - Manaus</div>
               <div className="text-[10px] font-mono text-slate-300 font-bold">Líder: {data.liderNome.split(' ')[0]} | Turno {data.turno}</div>
             </div>
           </div>
@@ -197,7 +197,6 @@ const App: React.FC = () => {
     );
   }
 
-  // 5. DASHBOARDS ATIVOS (LÍDER OU HUB AUTORIZADO)
   return (
     <div className="h-screen flex flex-col bg-[#0f1117] text-slate-200 overflow-hidden font-sans">
       <header className="h-14 bg-[#1a1c26] border-b border-slate-700 flex items-center justify-between px-6 shrink-0 z-50 shadow-lg">
@@ -216,7 +215,10 @@ const App: React.FC = () => {
         <div className="flex items-center gap-6">
           <div className="text-right border-l border-slate-700 pl-6">
             <p className="text-[10px] font-black text-slate-100 uppercase leading-none">{data.liderNome}</p>
-            <p className="text-[9px] text-blue-400 font-mono mt-1.5 font-bold uppercase">Sessão Ativa | Turno {data.turno}</p>
+            <div className="flex items-center justify-end gap-2 mt-1">
+               <Signal className="w-3 h-3 text-emerald-500" />
+               <p className="text-[9px] text-blue-400 font-mono font-bold uppercase tracking-tighter">Conexão Ativa #{activeShiftId?.slice(0, 5) || '...'}</p>
+            </div>
           </div>
           <button 
             onClick={() => {
@@ -270,23 +272,23 @@ const StartShiftScreen = ({ onStart, onBack }: any) => {
       <div className="bg-[#11131a] border border-blue-500/30 max-w-lg w-full p-10 shadow-2xl">
         <div className="flex items-center gap-4 mb-8">
            <div className="bg-blue-600 p-2 rounded-sm shadow-[0_0_15px_rgba(37,99,235,0.3)]"><Play className="w-5 h-5 text-white" /></div>
-           <h2 className="text-xl font-black text-white uppercase tracking-widest">Abertura de Turno Operacional</h2>
+           <h2 className="text-xl font-black text-white uppercase tracking-widest">Ativação Operacional de Turno</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Líder Responsável</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selecione o Líder Responsável</label>
             <select 
               required
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
               className="w-full bg-black border border-slate-800 p-4 text-sm font-bold text-slate-200 outline-none focus:border-blue-500 transition-colors"
             >
-              <option value="">Selecione o Líder...</option>
+              <option value="">Líder do Período...</option>
               {AVAILABLE_AGENTS.map(a => <option key={a.mat} value={a.mat}>{a.nome} (MAT: {a.mat})</option>)}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Letra do Turno</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Letra do Turno SBEG</label>
             <div className="grid grid-cols-4 gap-3">
               {['A', 'B', 'C', 'D'].map(l => (
                 <button 
@@ -305,7 +307,7 @@ const StartShiftScreen = ({ onStart, onBack }: any) => {
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_20px_rgba(37,99,235,0.2)] flex items-center justify-center gap-3 transition-all"
             >
-              Iniciar Operação <ChevronRight className="w-4 h-4" />
+              Abrir Operação & Liberar Terminais <ChevronRight className="w-4 h-4" />
             </button>
             <button 
               type="button"
