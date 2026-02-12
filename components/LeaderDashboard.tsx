@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReportData, ChannelData, Occurrence } from '../types';
 import { supabase } from '../supabase';
-import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X, ExternalLink, LayoutGrid, Copy, Radio, RefreshCw, Zap, Network, Signal } from 'lucide-react';
+import { Activity, Clock, ShieldAlert, Plane, ClipboardCheck, Info, Map, CheckCircle2, AlertCircle, Scan, AlertTriangle, X, ExternalLink, LayoutGrid, Copy, Radio, RefreshCw, Zap, Network, Signal, UserCheck, Shield } from 'lucide-react';
 
 interface Props {
   data: ReportData;
@@ -11,11 +11,11 @@ interface Props {
 
 const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
   const [selectedChannel, setSelectedChannel] = useState<{ name: string; occurrences: Occurrence[] } | null>(null);
+  const [showShiftInfo, setShowShiftInfo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [networkLogs, setNetworkLogs] = useState<{ id: string, msg: string, time: string }[]>([]);
   const hubUrl = `${window.location.origin}${window.location.pathname}?role=hub`;
 
-  // Simula logs de rede para efeito visual de monitoramento em tempo real
   useEffect(() => {
     const logs = [
       { id: '1', msg: 'CONEXÃO ESTABELECIDA: TERMINAL BRAVO', time: '18:05' },
@@ -30,34 +30,45 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
     alert('Link do Hub copiado! Use este endereço nos terminais dos canais.');
   };
 
-  const reSyncNetwork = async () => {
-    if (!activeShiftId || !supabase) {
-      alert("Nenhuma sessão ativa detectada para sincronizar.");
-      return;
-    }
-    
-    setIsSyncing(true);
-    try {
-      const { error } = await supabase
-        .from('relatorios')
-        .update({ recebimento_de: `SINC. FORÇADA: ${new Date().toLocaleTimeString()}` })
-        .eq('id', activeShiftId);
-        
-      if (error) throw error;
-      
-      const newLog = { id: Date.now().toString(), msg: 'PULSO DE REDE ENVIADO PARA TERMINAIS', time: new Date().toLocaleTimeString().slice(0, 5) };
-      setNetworkLogs(prev => [newLog, ...prev].slice(0, 5));
-      
-    } catch (err) {
-      console.error("Erro na reativação de rede:", err);
-    } finally {
-      setTimeout(() => setIsSyncing(false), 2000);
-    }
-  };
-
   return (
     <div className="h-full w-full p-6 grid grid-cols-12 grid-rows-6 gap-6 overflow-hidden bg-[#0f1117] relative">
       
+      {/* Modal de Atribuição de Turno (Novo) */}
+      {showShiftInfo && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowShiftInfo(false)} />
+          <div className="relative bg-[#1a1c26] border border-blue-500/50 w-full max-w-md p-10 shadow-[0_0_80px_rgba(37,99,235,0.2)] animate-in zoom-in-95 duration-200 rounded">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="bg-blue-600 p-4 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.4)]">
+                <Shield className="w-10 h-10 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-white uppercase tracking-widest">Controle de Atribuição</h3>
+                <p className="text-[10px] text-blue-500 font-bold uppercase tracking-[0.2em] mt-2">Responsável Técnico em Rede</p>
+              </div>
+              <div className="w-full space-y-4 pt-6">
+                <div className="bg-black/40 border border-slate-800 p-5 rounded">
+                  <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 text-left">Líder Supervisor</span>
+                  <span className="text-lg font-black text-white uppercase tracking-tight">{data.liderNome || 'NÃO ATRIBUÍDO'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-black/40 border border-slate-800 p-4 rounded">
+                    <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 text-left">Turno Ativo</span>
+                    <span className="text-sm font-black text-blue-400 uppercase">Grupo {data.turno || '---'}</span>
+                  </div>
+                  <div className="bg-black/40 border border-slate-800 p-4 rounded">
+                    <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 text-left">Início</span>
+                    <span className="text-sm font-black text-emerald-400 font-mono">{data.startTime || '--:--'}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[9px] text-slate-600 font-bold uppercase tracking-tight leading-relaxed max-w-[280px]">Este supervisor é o autoridade máxima nos canais Bravo, Alfa, Charlie e Fox durante o período vigente.</p>
+              <button onClick={() => setShowShiftInfo(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 text-[11px] uppercase tracking-widest rounded transition-all active:scale-95 shadow-lg">Confirmar Atribuição</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Detalhes da Ocorrência */}
       {selectedChannel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -88,7 +99,7 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
         </div>
       )}
 
-      {/* Header Central de Sincronismo */}
+      {/* Header Central */}
       <div className="col-span-12 row-span-1 bg-[#1a1c26] border border-slate-700 p-5 flex items-center justify-between shadow-2xl">
          <div className="flex gap-12 items-center">
             <div className="border-r border-slate-700 pr-12">
@@ -96,12 +107,11 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
               <div className="text-lg font-black text-blue-400 uppercase tracking-tight leading-none">{data.liderNome || '---'}</div>
             </div>
 
-            {/* PAINEL DE CONTROLE DE REDE */}
             <div className="flex items-center gap-5 bg-black/40 border border-slate-800 p-2 rounded px-4">
                <div className="flex items-center gap-4 border-r border-slate-700 pr-6">
                   <div className={`relative flex items-center justify-center`}>
-                     <div className={`absolute w-4 h-4 rounded-full ${isSyncing ? 'bg-blue-500 animate-ping' : 'bg-emerald-500/20'}`}></div>
-                     <Network className={`w-5 h-5 ${isSyncing ? 'text-blue-500' : 'text-emerald-500'}`} />
+                     <div className={`absolute w-4 h-4 rounded-full bg-emerald-500/20`}></div>
+                     <Network className={`w-5 h-5 text-emerald-500`} />
                   </div>
                   <div>
                     <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Rede de Sincronia</span>
@@ -110,12 +120,11 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
                </div>
                
                <button 
-                 onClick={reSyncNetwork}
-                 disabled={isSyncing}
-                 className={`flex items-center gap-3 px-5 py-2 rounded font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isSyncing ? 'bg-slate-700 text-slate-400' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}
+                 onClick={() => setShowShiftInfo(true)}
+                 className={`flex items-center gap-3 px-6 py-2 rounded font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20`}
                >
-                 {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-white" />}
-                 {isSyncing ? 'ATUALIZANDO FEED...' : 'FORÇAR SINCRONISMO'}
+                 <ClipboardCheck className="w-4 h-4 fill-white" />
+                 ATRIBUIR TURNO
                </button>
 
                <div className="h-8 w-px bg-slate-700 mx-2"></div>
@@ -142,7 +151,6 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
          </div>
       </div>
 
-      {/* Grid de Canais */}
       <div className="col-span-9 row-span-5 grid grid-cols-4 gap-6">
         <ChannelCard title="Bravo" data={data.canais.bravo} onOpenOccurrences={() => setSelectedChannel({ name: 'Canal Bravo', occurrences: data.canais.bravo.ocorrenciasList })} />
         <ChannelCard title="Alfa" data={data.canais.alfa} onOpenOccurrences={() => setSelectedChannel({ name: 'Canal Alfa', occurrences: data.canais.alfa.ocorrenciasList })} />
@@ -150,9 +158,7 @@ const LeaderDashboard: React.FC<Props> = ({ data, activeShiftId }) => {
         <ChannelCard title="Charlie" data={data.canais.charlie} onOpenOccurrences={() => setSelectedChannel({ name: 'Canal Charlie', occurrences: data.canais.charlie.ocorrenciasList })} />
       </div>
 
-      {/* Sidebar Monitoramento */}
       <div className="col-span-3 row-span-5 flex flex-col gap-6">
-        {/* NETWORK LIVE FEED (NEW) */}
         <section className="flex-grow bg-[#1a1c26] border border-slate-700 shadow-xl overflow-hidden flex flex-col">
           <div className="bg-slate-700/20 p-4 border-b border-slate-700 flex justify-between items-center">
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Feed de Rede AVSEC</h3>
@@ -218,7 +224,7 @@ const ChannelCard = ({ title, data, isFox, onOpenOccurrences }: any) => {
         <div>
           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 block">Agentes Reportados</label>
           <div className="bg-black/40 border border-slate-800 p-3 min-h-[60px] space-y-1.5">
-            {data.agentes.slice(0, 3).map((a: any) => (
+            {data.agentes.map((a: any) => (
               <div key={a.id} className="flex justify-between text-[10px] border-b border-slate-800/50 pb-1.5 last:border-0 last:pb-0">
                 <span className="font-bold text-slate-300 uppercase truncate">{a.nome.split(' ')[0]} {a.nome.split(' ').pop()}</span>
                 <span className="font-mono text-slate-500 text-[9px]">{a.mat}</span>

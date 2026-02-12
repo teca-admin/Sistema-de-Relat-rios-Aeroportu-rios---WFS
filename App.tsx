@@ -79,29 +79,38 @@ const App: React.FC = () => {
           supabase.from('relatorio_inspecoes').select('*').eq('relatorio_id', shiftId)
         ]);
 
-        // CRITICAL FIX: Criar um estado NOVO e LIMPO para cada sincronização
         const dbSyncData = getInitialReportData();
         dbSyncData.shiftStarted = true;
         dbSyncData.liderNome = shift.supervisor;
         dbSyncData.turno = shift.turno;
         dbSyncData.startTime = new Date(shift.created_at).toLocaleTimeString('pt-BR');
 
-        // Mapeamento seguro: Limpa e Preenche
+        // MECANISMO ANTI-DUPLICAÇÃO: Usamos um Map com chave única (Canal + Matrícula)
         if (agentsRes.data) {
+          const uniqueAgents = new Map();
           agentsRes.data.forEach((dbAgent: any) => {
-            const canalKey = dbAgent.canal as keyof ReportData['canais'];
+            const key = `${dbAgent.canal}-${dbAgent.mat}`;
+            if (!uniqueAgents.has(key)) {
+              uniqueAgents.set(key, {
+                id: dbAgent.id,
+                mat: dbAgent.mat,
+                nome: dbAgent.nome,
+                horario: dbAgent.horario,
+                canal: dbAgent.canal
+              });
+            }
+          });
+
+          uniqueAgents.forEach((agent) => {
+            const canalKey = agent.canal as keyof ReportData['canais'];
             if (dbSyncData.canais[canalKey]) {
-              // Verifica se já existe para evitar duplicação caso o polling falhe
-              const exists = dbSyncData.canais[canalKey].agentes.some(a => a.id === dbAgent.id);
-              if (!exists) {
-                dbSyncData.canais[canalKey].agentes.push({
-                  id: dbAgent.id || crypto.randomUUID(),
-                  mat: dbAgent.mat,
-                  nome: dbAgent.nome,
-                  horario: dbAgent.horario
-                });
-                dbSyncData.canais[canalKey].status = 'Finalizado';
-              }
+              dbSyncData.canais[canalKey].agentes.push({
+                id: agent.id,
+                mat: agent.mat,
+                nome: agent.nome,
+                horario: agent.horario
+              });
+              dbSyncData.canais[canalKey].status = 'Finalizado';
             }
           });
         }
@@ -111,7 +120,7 @@ const App: React.FC = () => {
             const canalKey = dbInsp.canal as keyof ReportData['canais'];
             if (dbSyncData.canais[canalKey]) {
               dbSyncData.canais[canalKey].inspecoes.push({
-                id: dbInsp.id || crypto.randomUUID(),
+                id: dbInsp.id,
                 descricao: dbInsp.descricao,
                 horario: dbInsp.horario,
                 status: dbInsp.status
@@ -122,7 +131,6 @@ const App: React.FC = () => {
 
         setData(prev => {
           const mergedData = { ...dbSyncData };
-          // Se o usuário estiver editando um canal agora, não sobrescrevemos o local dele
           if (activeChannel) {
             mergedData.canais[activeChannel as keyof ReportData['canais']] = prev.canais[activeChannel as keyof ReportData['canais']];
           }
