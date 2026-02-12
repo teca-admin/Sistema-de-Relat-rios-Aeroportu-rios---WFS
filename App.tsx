@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ReportData, ChannelData } from './types';
 import { getInitialReportData, AVAILABLE_AGENTS } from './constants';
 import { supabase } from './supabase';
@@ -18,7 +18,11 @@ const App: React.FC = () => {
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  
+  // Ref para evitar loops de sincronização entre abas
+  const lastSyncSource = useRef<'cloud' | 'storage' | null>(null);
 
+  // 1. Verificador de Saúde do DB
   useEffect(() => {
     const checkDb = async () => {
       if (!supabase) {
@@ -36,12 +40,14 @@ const App: React.FC = () => {
     checkDb();
   }, []);
 
+  // 2. Sincronismo entre Abas (LocalStorage)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'avsec_global_data') {
-        const remoteData = JSON.parse(e.newValue || '{}');
+      if (e.key === 'avsec_global_data' && e.newValue) {
+        const remoteData = JSON.parse(e.newValue);
         if (remoteData.shiftStarted) {
           setData(prev => {
+            // Preserva o que o usuário está editando agora no terminal local
             const updatedCanais = { ...remoteData.canais };
             if (activeChannel) {
               updatedCanais[activeChannel] = prev.canais[activeChannel as keyof ReportData['canais']];
@@ -57,92 +63,105 @@ const App: React.FC = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [activeChannel]);
 
+  // 3. Motor de Sincronização em Nuvem (Anti-Duplicação e Anti-Apagamento)
   useEffect(() => {
     const fetchCloud = async () => {
       if (dbStatus !== 'online') return;
+      
       try {
-        const { data: activeShifts } = await supabase
+        // Busca apenas o turno ativo mais recente
+        const { data: activeShifts, error: shiftError } = await supabase
           .from('relatorios')
           .select('*')
           .is('entregue_por', null)
           .order('created_at', { ascending: false })
           .limit(1);
 
-        if (!activeShifts || activeShifts.length === 0) return;
+        if (shiftError || !activeShifts || activeShifts.length === 0) return;
 
         const shift = activeShifts[0];
         const shiftId = shift.id;
         setActiveShiftId(shiftId);
 
+        // Busca dependências
         const [agentsRes, inspectionsRes] = await Promise.all([
           supabase.from('relatorio_agentes').select('*').eq('relatorio_id', shiftId),
           supabase.from('relatorio_inspecoes').select('*').eq('relatorio_id', shiftId)
         ]);
 
-        const dbSyncData = getInitialReportData();
-        dbSyncData.shiftStarted = true;
-        dbSyncData.liderNome = shift.supervisor;
-        dbSyncData.turno = shift.turno;
-        dbSyncData.startTime = new Date(shift.created_at).toLocaleTimeString('pt-BR');
+        // Prepara novo estado (SEM APAGAR O ANTERIOR CASO DÊ ERRO)
+        const nextSyncData = getInitialReportData();
+        nextSyncData.shiftStarted = true;
+        nextSyncData.liderNome = shift.supervisor;
+        nextSyncData.turno = shift.turno;
+        nextSyncData.startTime = new Date(shift.created_at).toLocaleTimeString('pt-BR');
 
-        // MECANISMO ANTI-DUPLICAÇÃO: Usamos um Map com chave única (Canal + Matrícula)
+        // Filtragem Rigorosa de Agentes (Anti-Duplicação por Chave Única)
         if (agentsRes.data) {
-          const uniqueAgents = new Map();
-          agentsRes.data.forEach((dbAgent: any) => {
-            const key = `${dbAgent.canal}-${dbAgent.mat}`;
-            if (!uniqueAgents.has(key)) {
-              uniqueAgents.set(key, {
-                id: dbAgent.id,
-                mat: dbAgent.mat,
-                nome: dbAgent.nome,
-                horario: dbAgent.horario,
-                canal: dbAgent.canal
-              });
+          const uniqueMap = new Map();
+          agentsRes.data.forEach((a: any) => {
+            // Chave única composta: ID real do banco ou Canal+Matricula
+            const key = a.id || `${a.canal}-${a.mat}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, a);
             }
           });
 
-          uniqueAgents.forEach((agent) => {
-            const canalKey = agent.canal as keyof ReportData['canais'];
-            if (dbSyncData.canais[canalKey]) {
-              dbSyncData.canais[canalKey].agentes.push({
-                id: agent.id,
-                mat: agent.mat,
-                nome: agent.nome,
-                horario: agent.horario
+          uniqueMap.forEach((a) => {
+            const canalKey = a.canal as keyof ReportData['canais'];
+            if (nextSyncData.canais[canalKey]) {
+              nextSyncData.canais[canalKey].agentes.push({
+                id: a.id,
+                mat: a.mat,
+                nome: a.nome,
+                horario: a.horario
               });
-              dbSyncData.canais[canalKey].status = 'Finalizado';
+              nextSyncData.canais[canalKey].status = 'Finalizado';
             }
           });
         }
 
+        // Filtragem de Inspeções
         if (inspectionsRes.data) {
-          inspectionsRes.data.forEach((dbInsp: any) => {
-            const canalKey = dbInsp.canal as keyof ReportData['canais'];
-            if (dbSyncData.canais[canalKey]) {
-              dbSyncData.canais[canalKey].inspecoes.push({
-                id: dbInsp.id,
-                descricao: dbInsp.descricao,
-                horario: dbInsp.horario,
-                status: dbInsp.status
-              });
+          inspectionsRes.data.forEach((i: any) => {
+            const canalKey = i.canal as keyof ReportData['canais'];
+            if (nextSyncData.canais[canalKey]) {
+              // Evita duplicar se já foi inserido nesta rodada
+              const exists = nextSyncData.canais[canalKey].inspecoes.some(insp => insp.id === i.id);
+              if (!exists) {
+                nextSyncData.canais[canalKey].inspecoes.push({
+                  id: i.id,
+                  descricao: i.descricao,
+                  horario: i.horario,
+                  status: i.status
+                });
+              }
             }
           });
         }
 
+        // Aplica o novo estado fundindo com edições locais
         setData(prev => {
-          const mergedData = { ...dbSyncData };
+          const merged = { ...nextSyncData };
+          // Se o usuário está digitando em um canal agora, preserva a visão dele
           if (activeChannel) {
-            mergedData.canais[activeChannel as keyof ReportData['canais']] = prev.canais[activeChannel as keyof ReportData['canais']];
+            merged.canais[activeChannel as keyof ReportData['canais']] = prev.canais[activeChannel as keyof ReportData['canais']];
           }
-          localStorage.setItem('avsec_global_data', JSON.stringify(mergedData));
-          return mergedData;
+          
+          // Só salva no storage se houver mudança real (evita flicker)
+          const serialized = JSON.stringify(merged);
+          if (localStorage.getItem('avsec_global_data') !== serialized) {
+            localStorage.setItem('avsec_global_data', serialized);
+          }
+          return merged;
         });
+
       } catch (err) {
-        console.error("Erro no motor de sincronização nuvem");
+        console.error("Falha no ciclo de sincronização");
       }
     };
 
-    const interval = setInterval(fetchCloud, 4000); 
+    const interval = setInterval(fetchCloud, 5000); 
     return () => clearInterval(interval);
   }, [dbStatus, activeChannel]);
 
@@ -155,10 +174,10 @@ const App: React.FC = () => {
     if (dbStatus === 'online') {
       try {
         const { data: newShiftArray } = await supabase.from('relatorios').insert([{
-          turno, supervisor: lider.nome, data_relatorio: new Date().toISOString().split('T')[0], recebimento_de: 'NOVO TURNO'
+          turno, supervisor: lider.nome, data_relatorio: new Date().toISOString().split('T')[0], recebimento_de: 'INÍCIO DE TURNO'
         }]).select();
         if (newShiftArray && newShiftArray.length > 0) setActiveShiftId(newShiftArray[0].id);
-      } catch (e) { console.error("Erro ao iniciar turno"); }
+      } catch (e) { console.error("Erro ao registrar no banco"); }
     }
     setTimeout(() => setIsSyncing(false), 800);
   };
@@ -170,7 +189,7 @@ const App: React.FC = () => {
   if (!currentRole) {
     return (
       <div className="h-screen bg-[#05060a] flex flex-col items-center justify-center p-6">
-        <div className="max-w-4xl w-full text-center space-y-12">
+        <div className="max-w-4xl w-full text-center space-y-12 animate-in fade-in zoom-in-95 duration-700">
           <div className="flex flex-col items-center space-y-4">
             <div className="bg-blue-600 p-5 rounded-2xl shadow-[0_0_50px_rgba(37,99,235,0.4)]">
               <Shield className="w-16 h-16 text-white" />
@@ -222,7 +241,7 @@ const App: React.FC = () => {
             <div className={`flex items-center gap-2 px-3 py-1 border rounded-full ${dbStatus === 'online' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
                {dbStatus === 'online' ? <Zap className="w-3 h-3 text-emerald-500 fill-emerald-500" /> : <WifiOff className="w-3 h-3 text-amber-500" />}
                <span className={`text-[9px] font-black uppercase ${dbStatus === 'online' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                 {dbStatus === 'online' ? 'Sincronia Nuvem Ativa' : 'Sincronia Apenas Entre Abas'}
+                 {dbStatus === 'online' ? 'Cloud Sync Ativo' : 'Local Mode Only'}
                </span>
             </div>
           </div>
@@ -250,7 +269,7 @@ const App: React.FC = () => {
             <div className="flex items-center justify-end gap-2 mt-2">
                <Signal className={`w-3.5 h-3.5 ${dbStatus === 'online' ? 'text-emerald-500 animate-pulse' : 'text-amber-500'}`} />
                <p className={`text-[9px] font-mono font-bold uppercase ${dbStatus === 'online' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                 {dbStatus === 'online' ? 'Rede Global' : 'Rede Local'}
+                 {dbStatus === 'online' ? 'Rede Ativa' : 'Offline'}
                </p>
             </div>
           </div>
